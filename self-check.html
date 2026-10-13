@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>jcmy-portal self-check</title>
+<style>
+body{font-family:monospace;padding:24px;background:#0F1A24;color:#F6F1E7}
+.pass{color:#57E59D}.fail{color:#FF8A82}
+h1{font-size:18px;margin-bottom:12px}
+ul{list-style:none;padding:0}
+li{margin-block:4px}
+</style>
+</head>
+<body>
+<h1>精彩贸易 · 核心逻辑自检</h1>
+<ul id="log"></ul>
+<script src="script.js"></script>
+<script>
+(function () {
+  var log = document.getElementById('log');
+  var pass = 0, fail = 0;
+  function test(name, fn) {
+    try {
+      fn();
+      pass++;
+      var li = document.createElement('li');
+      li.className = 'pass';
+      li.textContent = 'PASS: ' + name;
+      log.appendChild(li);
+    } catch (e) {
+      fail++;
+      var li = document.createElement('li');
+      li.className = 'fail';
+      li.textContent = 'FAIL: ' + name + ' -> ' + e.message;
+      log.appendChild(li);
+    }
+  }
+  function assert(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed'); }
+
+  var c = window.__jcmy;
+  assert(c, 'script.js must export window.__jcmy');
+
+  test('validateReport: 称呼必填', function () {
+    var errs = c.validateReport({ name: '', contact: '138', qty: '', down: '', where: '', note: '' });
+    assert(errs.name, 'name error should exist');
+  });
+
+  test('validateReport: 联系方式必填', function () {
+    var errs = c.validateReport({ name: '张', contact: '', qty: '', down: '', where: '', note: '' });
+    assert(errs.contact, 'contact error should exist');
+  });
+
+  test('validateReport: 数量只能是纯数字', function () {
+    var errs = c.validateReport({ name: '张', contact: '138', qty: '800件', down: '', where: '', note: '' });
+    assert(errs.qty, 'qty non-digit error should exist');
+  });
+
+  test('validateReport: 数量留空允许（视为待确认）', function () {
+    var errs = c.validateReport({ name: '张', contact: '138', qty: '', down: '', where: '', note: '' });
+    assert(!errs.qty, 'empty qty should be valid');
+    assert(Object.keys(errs).length === 0, 'no errors');
+  });
+
+  test('composeReport: 包含所有核心报货字段', function () {
+    var txt = c.composeReport({
+      name: '李姐', contact: '13912345678', kind: '当季新款',
+      qty: '500', down: '90% 白鸭绒', where: '萧山', note: '带原装吊牌'
+    });
+    assert(txt.indexOf('【羽绒服报货】') === 0, 'header');
+    assert(txt.indexOf('称呼：李姐') > 0, 'name');
+    assert(txt.indexOf('联系方式：13912345678') > 0, 'contact');
+    assert(txt.indexOf('货品类型：当季新款') > 0, 'kind');
+    assert(txt.indexOf('数量：500 件') > 0, 'qty');
+    assert(txt.indexOf('含绒量：90% 白鸭绒') > 0, 'down');
+    assert(txt.indexOf('货在哪里：萧山') > 0, 'where');
+    assert(txt.indexOf('补充：带原装吊牌') > 0, 'note');
+  });
+
+  test('composeReport: 缺省字段优雅降级', function () {
+    var txt = c.composeReport({
+      name: '王', contact: 'wx123', kind: '过季库存',
+      qty: '', down: '', where: '', note: ''
+    });
+    assert(txt.indexOf('数量：待确认') > 0, 'qty fallback');
+    assert(txt.indexOf('含绒量：不清楚') > 0, 'down fallback');
+    assert(txt.indexOf('货在哪里：待确认') > 0, 'where fallback');
+    assert(txt.indexOf('补充：') === -1, 'no empty note');
+  });
+
+  var total = document.createElement('p');
+  total.style.marginTop = '16px';
+  total.textContent = '完成：' + pass + ' 通过，' + fail + ' 失败。';
+  total.className = fail === 0 ? 'pass' : 'fail';
+  document.body.appendChild(total);
+})();
+</script>
+</body>
+</html>
