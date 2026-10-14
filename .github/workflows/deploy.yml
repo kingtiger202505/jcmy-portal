@@ -26,7 +26,9 @@ jobs:
             tar -xzf "$TMP_DIR/site.tar.gz" -C "$TMP_DIR"
 
             mkdir -p "$SITE_DIR"
-            find "$SITE_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            # 宝塔会给 .user.ini 加 immutable 标志，先解除再清理，并保留该文件
+            chattr -i "$SITE_DIR/.user.ini" 2>/dev/null || true
+            find "$SITE_DIR" -mindepth 1 -maxdepth 1 ! -name '.user.ini' -exec rm -rf {} +
             cp -a "$TMP_DIR"/jcmy-portal-main/. "$SITE_DIR"/
 
             find "$SITE_DIR" -type d -exec chmod 755 {} \;
