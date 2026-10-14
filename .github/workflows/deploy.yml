@@ -1,0 +1,48 @@
+name: Deploy to ECS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to ECS over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          script: |
+            set -e
+            SITE_DIR=/www/wwwroot/phjcmy.com
+            REPO=https://github.com/kingtiger202505/jcmy-portal.git
+
+            if ! command -v git >/dev/null 2>&1; then
+              if command -v yum >/dev/null 2>&1; then
+                yum install -y git
+              else
+                apt-get update && apt-get install -y git
+              fi
+            fi
+
+            if [ ! -d "$SITE_DIR/.git" ]; then
+              TMP_DIR=$(mktemp -d)
+              git clone --depth 1 "$REPO" "$TMP_DIR"
+              mkdir -p "$SITE_DIR"
+              cp -a "$TMP_DIR"/. "$SITE_DIR"/
+              rm -rf "$TMP_DIR"
+            fi
+
+            cd "$SITE_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+
+            find "$SITE_DIR" -type d -exec chmod 755 {} \;
+            find "$SITE_DIR" -type f -exec chmod 644 {} \;
+            if id www >/dev/null 2>&1; then
+              chown -R www:www "$SITE_DIR"
+            fi
+            echo "Deployed to $SITE_DIR at $(date '+%F %T')"
