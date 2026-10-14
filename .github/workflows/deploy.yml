@@ -18,7 +18,7 @@ jobs:
           script: |
             set -e
             SITE_DIR=/www/wwwroot/phjcmy.com
-            REPO=https://github.com/kingtiger202505/jcmy-portal.git
+            REPO=https://github.com/kingtiger202505/jcmy-portal
             TMP_DIR=$(mktemp -d)
             trap 'rm -rf "$TMP_DIR"' EXIT
 
