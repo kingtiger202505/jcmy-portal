@@ -19,26 +19,15 @@ jobs:
             set -e
             SITE_DIR=/www/wwwroot/phjcmy.com
             REPO=https://github.com/kingtiger202505/jcmy-portal.git
+            TMP_DIR=$(mktemp -d)
+            trap 'rm -rf "$TMP_DIR"' EXIT
 
-            if ! command -v git >/dev/null 2>&1; then
-              if command -v yum >/dev/null 2>&1; then
-                yum install -y git
-              else
-                apt-get update && apt-get install -y git
-              fi
-            fi
+            curl -fsSL "$REPO/archive/refs/heads/main.tar.gz" -o "$TMP_DIR/site.tar.gz"
+            tar -xzf "$TMP_DIR/site.tar.gz" -C "$TMP_DIR"
 
-            if [ ! -d "$SITE_DIR/.git" ]; then
-              TMP_DIR=$(mktemp -d)
-              git clone --depth 1 "$REPO" "$TMP_DIR"
-              mkdir -p "$SITE_DIR"
-              cp -a "$TMP_DIR"/. "$SITE_DIR"/
-              rm -rf "$TMP_DIR"
-            fi
-
-            cd "$SITE_DIR"
-            git fetch origin main
-            git reset --hard origin/main
+            mkdir -p "$SITE_DIR"
+            find "$SITE_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            cp -a "$TMP_DIR"/jcmy-portal-main/. "$SITE_DIR"/
 
             find "$SITE_DIR" -type d -exec chmod 755 {} \;
             find "$SITE_DIR" -type f -exec chmod 644 {} \;
