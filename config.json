@@ -1,0 +1,26 @@
+{
+  "_说明": "微信客服机器人的部署配置。换机器/换群只改这个文件，不用动 .py。群名必须是会话列表里显示的那个名字（一字不差）。**这里列出的群一律既监控又回复**；要单独关掉某个群的自动回复，加 auto_reply 或 reply_groups。命令行参数的优先级高于本文件。",
+  "groups": [
+    "ai测试2群",
+    "视频号，剪映，微企"
+  ],
+  "interval": 3.0,
+  "full_scan_every": 5,
+  "knowledge_file": "knowledge.md",
+  "decision_log": "cs_decisions.jsonl",
+  "dify": {
+    "base_url": "http://115.29.198.190:8081",
+    "dataset_id": "5f88035a-b79c-4863-8300-7cf069ee2dd3",
+    "api_key": "dataset-oxwB9j61p7MyVxwqEI0rwGTF"
+  },
+  "wecom": {
+    "webhook": "",
+    "fields": {
+      "time": "",
+      "group": "",
+      "msgs": "",
+      "reason": "",
+      "status": ""
+    }
+  }
+}

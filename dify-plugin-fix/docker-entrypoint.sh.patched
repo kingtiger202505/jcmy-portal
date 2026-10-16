@@ -1,0 +1,71 @@
+#!/bin/bash
+
+PG_MAJOR=16
+
+if [ "${PG_BIGM}" = "true" ]; then
+  CONF=/var/lib/postgresql/data/pgdata/postgresql.conf
+  LIB=/usr/lib/postgresql/${PG_MAJOR}/lib/pg_bigm.so
+
+  if [ -f "${LIB}" ]; then
+    # 已经编译过（同一容器里重复启动），别再折腾一遍
+    echo "[pg_bigm] ${LIB} 已存在，跳过编译"
+  else
+    # ── 换国内镜像源 ──────────────────────────────────────────────
+    # 这台 ECS 到 deb.debian.org 实测只有 ~32KB/s（装依赖要 3.5 小时），
+    # 到 mirrors.aliyun.com 是 ~9.5MB/s（292 倍）。阿里云不通就沿用原源。
+    # 不用 curl 探测：curl 这时候还没装，用 bash 自带的 /dev/tcp。
+    # 注意必须用 http：容器里没装 ca-certificates，走 https 会
+    # "Certificate verification failed: could not handshake" 直接卡死。
+    # apt 的 InRelease 本身有 GPG 签名校验，走 http 不降低安全性。
+    if timeout 5 bash -c 'exec 3<>/dev/tcp/mirrors.aliyun.com/80' 2>/dev/null; then
+      sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' \
+        /etc/apt/sources.list.d/debian.sources 2>/dev/null
+      sed -i 's|http://apt.postgresql.org/pub/repos/apt|http://mirrors.aliyun.com/postgresql/repos/apt|g' \
+        /etc/apt/sources.list.d/pgdg.list 2>/dev/null
+      echo "[pg_bigm] 已切换到阿里云镜像源(http)"
+    else
+      echo "[pg_bigm] 阿里云镜像不可达，沿用原源"
+    fi
+
+    # install build deps
+    # --no-install-recommends：postgresql-server-dev-16 的 Recommends 会拖进
+    # llvm-19/llvm-19-dev 等 123 个包、1GB 磁盘，而编译 pg_bigm 根本用不到 JIT。
+    apt-get update
+    apt-get install -y --no-install-recommends make gcc postgresql-server-dev-${PG_MAJOR} || exit 1
+
+    # ── 源码包 ────────────────────────────────────────────────────
+    # 优先用本地暂存的（这台服务器连不上 github.com，实测超时），本地没有才回退官方下载。
+    W=/tmp/pg_bigm_build
+    rm -rf "$W" && mkdir -p "$W" && cd "$W" || exit 1
+    if [ -f "/pg_bigm-src/v${PG_BIGM_VERSION}.tar.gz" ]; then
+      echo "[pg_bigm] 使用本地暂存源码 /pg_bigm-src/v${PG_BIGM_VERSION}.tar.gz"
+      cp "/pg_bigm-src/v${PG_BIGM_VERSION}.tar.gz" .
+    else
+      echo "[pg_bigm] 本地无源码，回退 github 下载"
+      (command -v curl >/dev/null || apt-get install -y --no-install-recommends curl) && \
+        curl -LO https://github.com/pgbigm/pg_bigm/archive/refs/tags/v${PG_BIGM_VERSION}.tar.gz || exit 1
+    fi
+
+    tar xf v${PG_BIGM_VERSION}.tar.gz || exit 1
+    cd "pg_bigm-${PG_BIGM_VERSION}" || exit 1
+    make USE_PGXS=1 PG_CONFIG=/usr/bin/pg_config || exit 1
+    make USE_PGXS=1 PG_CONFIG=/usr/bin/pg_config install || exit 1
+
+    cd / && rm -rf "$W"
+    echo "[pg_bigm] 编译安装完成"
+  fi
+
+  # enable pg_bigm
+  # 官方那句 sed 只匹配「已注释的 shared_preload_libraries 行」，
+  # 这行要是压根不存在，sed 静默什么都不做 -> 扩展降级、检索会报错。
+  # 这里两种情况都处理，并且写成幂等的。
+  if grep -qE '^[[:space:]]*#?[[:space:]]*shared_preload_libraries' "$CONF"; then
+    sed -i "s|^[[:space:]]*#\?[[:space:]]*shared_preload_libraries.*|shared_preload_libraries = 'pg_bigm'|" "$CONF"
+  else
+    echo "shared_preload_libraries = 'pg_bigm'" >> "$CONF"
+  fi
+  echo "[pg_bigm] shared_preload_libraries: $(grep -E '^[[:space:]]*shared_preload_libraries' "$CONF")"
+fi
+
+# Run the original entrypoint script
+exec /usr/local/bin/docker-entrypoint.sh postgres

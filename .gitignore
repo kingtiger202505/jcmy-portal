@@ -2,3 +2,5 @@
 .DS_Store
 Thumbs.db
 微信图片_*.jpg
+__pycache__/
+*.pyc
